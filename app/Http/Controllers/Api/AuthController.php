@@ -17,18 +17,19 @@ class AuthController extends Controller
             'name' => 'required|string',
             'email' => 'required|email|unique:users',
             'password' => 'required|confirmed|min:8',
-            'role' => 'nullable|in:admin,attendee',
+            // 'role' => 'nullable|in:admin,attendee',
         ]);
 
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'role' => $request->role ?? 'attendee',
+            // 'role' => $request->role ?? 'attendee',
         ]);
 
         $data = [
             'token' => $user->createToken('api_token')->plainTextToken,
+            'user' => $user,
         ];
 
         return $this->successResponse($data, 'User registered successfully', 201);
@@ -52,6 +53,7 @@ class AuthController extends Controller
 
         $data = [
             'token' => $user->createToken('api_token')->plainTextToken,
+            'user' => $user,
         ];
 
         return $this->successResponse($data, 'User logged in successfully', 200);
