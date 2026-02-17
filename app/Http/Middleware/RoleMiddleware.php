@@ -22,8 +22,8 @@ class RoleMiddleware
 
         return response()->json([
             'status' => 'error',
-            'message' => 'Unauthorized access.',
+            'message' => 'Forbidden: You do not have the '. $role . ' role.',
             'errors' => [],
         ], 403);
-    } // 18:35
+    }
 }

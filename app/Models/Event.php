@@ -16,4 +16,8 @@ class Event extends Model
         'date' => 'datetime',
         // 'is_active' => 'boolean',
     ];
+
+    public function tickets() {
+        return $this->hasMany(Ticket::class);
+    }
 }
