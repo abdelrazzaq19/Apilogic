@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\EventController;
+use App\Http\Controllers\Api\TicketController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -25,7 +26,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::group(['middleware' => ['role:attendee']], function () {
-        // 
+        Route::post(('/event/{eventId}/reserve'), [TicketController::class, 'store']);
     });
 });
 
