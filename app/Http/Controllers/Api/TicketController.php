@@ -25,6 +25,11 @@ class TicketController extends Controller
         try {
             $event = Event::where('id', $eventId)->lockForUpdate()->firstOrFail();
 
+            if ($event->date < now()) {
+                DB::rollBack();
+                return $this->errorResponse('Event has already started', 400);
+            }
+
             $existingTicket = Ticket::where('user_id', $user->id)->where('event_id', $event->id)->where('is_canceled, false')->exist();
 
             if ($existingTicket) {
@@ -62,5 +67,55 @@ class TicketController extends Controller
             DB::rollBack();
             return $this->errorResponse($e->getMessage(), 500);
         }
-    } 
-} // video ke 6 16:14
+    }
+    public function indexByUser(Request $request)
+    {
+        $user = $request->user();
+        $tickets = $user->tickets()->latest()->get();
+
+        return $this->successResponse($tickets, 'Tickets fetched successfully', 200);
+    }
+    public function indexByEvent(Request $request, $eventId)
+    {
+        $event = Event::find($eventId);
+        if (!$event) {
+            return $this->errorResponse('Event not found', 404);
+        }
+
+        $tickets = $event->tickets()->where('is_canceled', false)->latest()->get();
+        return $this->successResponse($tickets, 'Tickets fetched successfully', 200);
+    }
+    public function cancel(Request $request, $ticketId)
+    {
+        $ticket = Ticket::find($ticketId);
+        if (!$ticket) {
+            return $this->errorResponse('Ticket not found', 404);
+        }
+
+        if ($ticket->is_canceled) {
+            return $this->errorResponse('Ticket is already canceled', 400);
+        }
+
+        $ticket->is_canceled = true;
+        $ticket->save();
+
+        return $this->successResponse(null, 'Ticket canceled successfully', 200);
+    }
+    public function checkIn(Request $request)
+    {
+        $code = $request->code;
+        $ticket = Ticket::where('code', $code)->where('is_canceled', false)->first();
+        if (!$ticket) {
+            return $this->errorResponse('Ticket not found', 404);
+        }
+        if ($ticket->is_canceled) {
+            return $this->errorResponse('Ticket is canceled', 400);
+        }
+        if ($ticket->checked_at) {
+            return $this->errorResponse('Ticket already checked in', 400);
+        }
+        $ticket->checked_at = now();
+        $ticket->save();
+        return $this->successResponse(null, 'Ticket checked in successfully', 200);
+    }
+} // video ke 7 

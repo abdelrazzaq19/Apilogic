@@ -23,10 +23,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/event', [EventController::class, 'store']);
         Route::post('/event/{eventId}', [EventController::class, 'update']);
         Route::delete('event/{eventId}', [EventController::class, 'delete']);
+        Route::get('/event/{eventId}/ticket', [TicketController::class, 'indexByEvent']);
+        Route::patch('/checkin', [TicketController::class, 'checkIn']);
     });
 
     Route::group(['middleware' => ['role:attendee']], function () {
         Route::post(('/event/{eventId}/reserve'), [TicketController::class, 'store']);
+        Route::get('/my-tickets', [TicketController::class, 'indexByUser']);
+        Route::patch('/ticket/{ticketId}/cancel', [TicketController::class, 'cancel']);
     });
 });
 
