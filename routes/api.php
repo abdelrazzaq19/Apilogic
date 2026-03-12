@@ -6,36 +6,36 @@ use App\Http\Controllers\Api\TicketController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
+Route::middleware(['apiKey'])->group(function () {
 
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/user', function (Request $request) {
+            return $request->user();
+        });
+        Route::middleware('auth:sanctum')->post('/logout', [AuthController::class, 'logout']);
 
+        Route::get('/event', [EventController::class, 'index']);
 
-Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/user', function (Request $request) {
-        return $request->user();
+        Route::get('/event/{id}', [EventController::class, 'show']);
+
+        Route::group(['middleware' => ['role:admin']], function () {
+            Route::post('/event', [EventController::class, 'store']);
+            Route::post('/event/{eventId}', [EventController::class, 'update']);
+            Route::delete('event/{eventId}', [EventController::class, 'delete']);
+            Route::get('/event/{eventId}/ticket', [TicketController::class, 'indexByEvent']);
+            Route::patch('/checkin', [TicketController::class, 'checkIn']);
+        });
+
+        Route::group(['middleware' => ['role:attendee']], function () {
+            Route::post(('/event/{eventId}/reserve'), [TicketController::class, 'store']);
+            Route::get('/my-tickets', [TicketController::class, 'indexByUser']);
+            Route::patch('/ticket/{ticketId}/cancel', [TicketController::class, 'cancel']);
+        });
     });
-    Route::middleware('auth:sanctum')->post('/logout', [AuthController::class, 'logout']);
 
-    Route::get('/event', [EventController::class, 'index']);
+    Route::group([], function () {
 
-    Route::get('/event/{id}', [EventController::class, 'show']);
-
-    Route::group(['middleware' => ['role:admin']], function () {
-        Route::post('/event', [EventController::class, 'store']);
-        Route::post('/event/{eventId}', [EventController::class, 'update']);
-        Route::delete('event/{eventId}', [EventController::class, 'delete']);
-        Route::get('/event/{eventId}/ticket', [TicketController::class, 'indexByEvent']);
-        Route::patch('/checkin', [TicketController::class, 'checkIn']);
+        Route::post('/register', [AuthController::class, 'register']);
+        Route::post('/login', [AuthController::class, 'login']);
     });
-
-    Route::group(['middleware' => ['role:attendee']], function () {
-        Route::post(('/event/{eventId}/reserve'), [TicketController::class, 'store']);
-        Route::get('/my-tickets', [TicketController::class, 'indexByUser']);
-        Route::patch('/ticket/{ticketId}/cancel', [TicketController::class, 'cancel']);
-    });
-});
-
-Route::group([], function () {
-
-    Route::post('/register', [AuthController::class, 'register']);
-    Route::post('/login', [AuthController::class, 'login']);
 });

@@ -16,14 +16,14 @@ class RoleMiddleware
      */
     public function handle(Request $request, Closure $next, string $role): Response
     {
+        // Check if user is logged in and has the required role
         if (Auth::check() && Auth::user()->role === $role) {
             return $next($request);
         }
 
         return response()->json([
-            'status' => 'error',
-            'message' => 'Forbidden: You do not have the '. $role . ' role.',
-            'errors' => [],
+            'status' => 'Error',
+            'message' => 'Forbidden: You do not have the ' . $role . ' role.',
         ], 403);
     }
 }
