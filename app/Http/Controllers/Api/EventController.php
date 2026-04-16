@@ -16,7 +16,7 @@ class EventController extends Controller
         $validated = $request->validate([
             'name' => 'required|string',
             'desc' => 'required|string',
-            'images' => 'required|array|min:1',
+            'images' => 'nullable|array',
             'images.*' => 'image|mimes:png,jpg,jpeg|max:2048',
             'date' => 'required|date',
             'max_reservation' => 'required|integer|min:1',
@@ -30,7 +30,7 @@ class EventController extends Controller
             }
         }
 
-        $validated['images'] = $paths;
+        $validated['images'] = empty($paths) ? [] : $paths;
 
         // dd($validated);
 
@@ -72,7 +72,7 @@ class EventController extends Controller
         $validated = $request->validate([
             'name' => 'required|string',
             'desc' => 'required|string',
-            'images' => 'required|array|min:1',
+            'images' => 'nullable|array',
             'images.*' => 'image|mimes:png,jpg,jpeg|max:2048',
             'date' => 'required|date',
             'max_reservation' => 'required|integer|min:1',
@@ -86,18 +86,24 @@ class EventController extends Controller
             }
         }
 
-        $validated['images'] = $paths;
-
-        foreach ($event->images as $image) {
-            $path = str_replace('/storage', '', $image);
-            Storage::disk('public')->delete($path);
+        if (!empty($paths)) {
+            $validated['images'] = $paths;
+            
+            // Delete old images
+            foreach ($event->images as $image) {
+                $path = str_replace('/storage', '', $image);
+                Storage::disk('public')->delete($path);
+            }
+        } else {
+            // Keep old images if no new images uploaded
+            $validated['images'] = $event->images;
         }
 
         $event->update($validated);
 
         // dd($validated);
 
-        return $this->successResponse($event, 'Event created successfully', 201);
+        return $this->successResponse($event, 'Event updated successfully', 200);
     }
 
     public function delete($eventId)
