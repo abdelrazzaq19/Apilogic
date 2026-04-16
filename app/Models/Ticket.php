@@ -17,11 +17,11 @@ class Ticket extends Model
 
     public function user()
     {
-        return $this->belongsTo(Event::class);
+        return $this->belongsTo(User::class);  // ✅ BENAR
     }
 
     public function event()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(Event::class);  // ✅ BENAR
     }
 }

@@ -30,7 +30,7 @@ class TicketController extends Controller
                 return $this->errorResponse('Event has already started', 400);
             }
 
-            $existingTicket = Ticket::where('user_id', $user->id)->where('event_id', $event->id)->where('is_canceled, false')->exist();
+            $existingTicket = Ticket::where('user_id', $user->id)->where('event_id', $event->id)->where('is_canceled', false)->exists();
 
             if ($existingTicket) {
                 DB::rollBack();
