@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 class TicketController extends Controller
 {
     use ApiResponse;
+
     public function store(Request $request, $eventId)
     {
         $event = Event::find($eventId);
@@ -30,7 +31,10 @@ class TicketController extends Controller
                 return $this->errorResponse('Event has already started', 400);
             }
 
-            $existingTicket = Ticket::where('user_id', $user->id)->where('event_id', $event->id)->where('is_canceled', false)->exists();
+            $existingTicket = Ticket::where('user_id', $user->id)
+                ->where('event_id', $event->id)
+                ->where('is_canceled', false)
+                ->exists();
 
             if ($existingTicket) {
                 DB::rollBack();
@@ -52,7 +56,6 @@ class TicketController extends Controller
             ];
 
             $encode = base64_encode(json_encode($payload));
-
             $code = 'ikutan-' . uniqid() . '-' . $encode;
 
             $ticket = Ticket::create([
@@ -62,19 +65,28 @@ class TicketController extends Controller
             ]);
 
             DB::commit();
+
+            $ticket->load('event');
+
             return $this->successResponse($ticket, 'Ticket created successfully', 201);
         } catch (\Exception $e) {
             DB::rollBack();
             return $this->errorResponse($e->getMessage(), 500);
         }
     }
+
     public function indexByUser(Request $request)
     {
         $user = $request->user();
-        $tickets = $user->tickets()->latest()->get();
+
+        $tickets = $user->tickets()
+            ->with('event')
+            ->latest()
+            ->get();
 
         return $this->successResponse($tickets, 'Tickets fetched successfully', 200);
     }
+
     public function indexByEvent(Request $request, $eventId)
     {
         $event = Event::find($eventId);
@@ -82,9 +94,15 @@ class TicketController extends Controller
             return $this->errorResponse('Event not found', 404);
         }
 
-        $tickets = $event->tickets()->where('is_canceled', false)->latest()->get();
+        $tickets = $event->tickets()
+            ->with('user')
+            ->where('is_canceled', false)
+            ->latest()
+            ->get();
+
         return $this->successResponse($tickets, 'Tickets fetched successfully', 200);
     }
+
     public function cancel(Request $request, $ticketId)
     {
         $ticket = Ticket::find($ticketId);
@@ -92,8 +110,16 @@ class TicketController extends Controller
             return $this->errorResponse('Ticket not found', 404);
         }
 
+        if ($ticket->user_id !== $request->user()->id) {
+            return $this->errorResponse('Unauthorized', 403);
+        }
+
         if ($ticket->is_canceled) {
             return $this->errorResponse('Ticket is already canceled', 400);
+        }
+
+        if ($ticket->checked_at) {
+            return $this->errorResponse('Cannot cancel a ticket that has already been used', 400);
         }
 
         $ticket->is_canceled = true;
@@ -101,21 +127,33 @@ class TicketController extends Controller
 
         return $this->successResponse(null, 'Ticket canceled successfully', 200);
     }
+
     public function checkIn(Request $request)
     {
         $code = $request->code;
         $ticket = Ticket::where('code', $code)->where('is_canceled', false)->first();
+
         if (!$ticket) {
             return $this->errorResponse('Ticket not found', 404);
         }
+
         if ($ticket->is_canceled) {
             return $this->errorResponse('Ticket is canceled', 400);
         }
+
         if ($ticket->checked_at) {
             return $this->errorResponse('Ticket already checked in', 400);
         }
+
         $ticket->checked_at = now();
         $ticket->save();
-        return $this->successResponse(null, 'Ticket checked in successfully', 200);
+
+        $ticket->load('user', 'event');
+
+        return $this->successResponse([
+            'ticket' => $ticket,
+            'attendee' => $ticket->user?->name,
+            'event' => $ticket->event?->name,
+        ], 'Ticket checked in successfully', 200);
     }
-} // video ke 7 
+}

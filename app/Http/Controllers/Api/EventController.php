@@ -16,11 +16,14 @@ class EventController extends Controller
         $validated = $request->validate([
             'name' => 'required|string',
             'desc' => 'required|string',
-            'images' => 'nullable|array',
+            'images' => 'sometimes|array',  // ✅ Ubah dari 'nullable' ke 'sometimes'
             'images.*' => 'image|mimes:png,jpg,jpeg|max:2048',
             'date' => 'required|date',
             'max_reservation' => 'required|integer|min:1',
         ]);
+
+        // ✅ Pastikan images selalu ada sebagai array kosong jika tidak dikirim
+        $validated['images'] = $validated['images'] ?? [];
 
         $paths = [];
         if ($request->hasFile('images')) {
@@ -28,12 +31,8 @@ class EventController extends Controller
                 $path = $image->store('events', 'public');
                 $paths[] = Storage::url($path);
             }
+            $validated['images'] = $paths;
         }
-
-        $validated['images'] = empty($paths) ? [] : $paths;
-
-        // dd($validated);
-
 
         $event = Event::create($validated);
 
@@ -88,7 +87,7 @@ class EventController extends Controller
 
         if (!empty($paths)) {
             $validated['images'] = $paths;
-            
+
             // Delete old images
             foreach ($event->images as $image) {
                 $path = str_replace('/storage', '', $image);
