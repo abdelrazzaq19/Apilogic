@@ -13,147 +13,62 @@ class TicketController extends Controller
 {
     use ApiResponse;
 
+    // Fungsi untuk User mendaftar ke Event
     public function store(Request $request, $eventId)
     {
-        $event = Event::find($eventId);
-        if (!$event) {
-            return $this->errorResponse('Event not found', 404);
-        }
-
         $user = $request->user();
+        
+        return DB::transaction(function () use ($user, $eventId) {
+            $event = Event::where('id', $eventId)->lockForUpdate()->first();
 
-        DB::beginTransaction();
-        try {
-            $event = Event::where('id', $eventId)->lockForUpdate()->firstOrFail();
-
-            if ($event->date < now()) {
-                DB::rollBack();
-                return $this->errorResponse('Event has already started', 400);
+            if (!$event) {
+                return $this->errorResponse('Event tidak ditemukan', 404);
             }
 
+            // Cek apakah user sudah punya tiket aktif untuk event ini
             $existingTicket = Ticket::where('user_id', $user->id)
-                ->where('event_id', $event->id)
+                ->where('event_id', $eventId)
                 ->where('is_canceled', false)
                 ->exists();
 
             if ($existingTicket) {
-                DB::rollBack();
-                return $this->errorResponse('User already has a ticket for this event', 400);
+                return $this->errorResponse('Anda sudah terdaftar di event ini', 400);
             }
 
-            $currentBookings = $event->tickets()->where('is_canceled', false)->count();
-
+            // Cek kuota reservasi
+            $currentBookings = Ticket::where('event_id', $eventId)->where('is_canceled', false)->count();
             if ($currentBookings >= $event->max_reservation) {
-                DB::rollBack();
-                return $this->errorResponse('Event is fully booked', 400);
+                return $this->errorResponse('Maaf, kuota event sudah penuh', 400);
             }
 
+            // Generate Kode Unik
             $payload = [
                 'un' => $user->name,
-                'ue' => $user->email,
                 'en' => $event->name,
-                'ed' => $event->date,
+                'ts' => now()->timestamp
             ];
-
             $encode = base64_encode(json_encode($payload));
-            $code = 'ikutan-' . uniqid() . '-' . $encode;
+            $code = 'ikutan-' . strtoupper(uniqid()) . '-' . $encode;
 
             $ticket = Ticket::create([
                 'user_id' => $user->id,
                 'event_id' => $event->id,
                 'code' => $code,
+                'is_canceled' => false
             ]);
 
-            DB::commit();
-
-            $ticket->load('event');
-
-            return $this->successResponse($ticket, 'Ticket created successfully', 201);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return $this->errorResponse($e->getMessage(), 500);
-        }
+            return $this->successResponse($ticket->load('event'), 'Berhasil mendaftar event!', 201);
+        });
     }
 
+    // List tiket milik user yang sedang login
     public function indexByUser(Request $request)
     {
-        $user = $request->user();
-
-        $tickets = $user->tickets()
+        $tickets = Ticket::where('user_id', $request->user()->id)
             ->with('event')
             ->latest()
             ->get();
 
-        return $this->successResponse($tickets, 'Tickets fetched successfully', 200);
-    }
-
-    public function indexByEvent(Request $request, $eventId)
-    {
-        $event = Event::find($eventId);
-        if (!$event) {
-            return $this->errorResponse('Event not found', 404);
-        }
-
-        $tickets = $event->tickets()
-            ->with('user')
-            ->where('is_canceled', false)
-            ->latest()
-            ->get();
-
-        return $this->successResponse($tickets, 'Tickets fetched successfully', 200);
-    }
-
-    public function cancel(Request $request, $ticketId)
-    {
-        $ticket = Ticket::find($ticketId);
-        if (!$ticket) {
-            return $this->errorResponse('Ticket not found', 404);
-        }
-
-        if ($ticket->user_id !== $request->user()->id) {
-            return $this->errorResponse('Unauthorized', 403);
-        }
-
-        if ($ticket->is_canceled) {
-            return $this->errorResponse('Ticket is already canceled', 400);
-        }
-
-        if ($ticket->checked_at) {
-            return $this->errorResponse('Cannot cancel a ticket that has already been used', 400);
-        }
-
-        $ticket->is_canceled = true;
-        $ticket->save();
-
-        return $this->successResponse(null, 'Ticket canceled successfully', 200);
-    }
-
-    public function checkIn(Request $request)
-    {
-        $code = $request->code;
-        $ticket = Ticket::where('code', $code)->where('is_canceled', false)->first();
-
-        if (!$ticket) {
-            return $this->errorResponse('Ticket not found', 404);
-        }
-
-        if ($ticket->is_canceled) {
-            return $this->errorResponse('Ticket is canceled', 400);
-        }
-
-        if ($ticket->checked_at) {
-            return $this->errorResponse('Ticket already checked in', 400);
-        }
-
-        $ticket->checked_at = now();
-        $ticket->save();
-
-        $ticket->load('user', 'event');
-
-        return $this->successResponse([
-            'ticket' => $ticket,
-            'attendee' => $ticket->user?->name,
-            'event' => $ticket->event?->name,
-        ], 'Ticket checked in successfully', 200);
+        return $this->successResponse($tickets, 'Tickets fetched successfully');
     }
 }
